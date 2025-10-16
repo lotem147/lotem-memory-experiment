@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>ניסוי זיכרון - לוטם</title>
+
+  <!-- ✅ גרסה שמתאימה לדפדפן -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+  <!-- ✅ עיצוב -->
+  <style>
+    body {
+      font-family: 'Noto Sans Hebrew', 'Calibri', sans-serif;
+      background-color: #808080; /* אפור כהה */
+      color: #f5f5f5;
+      text-align: center;
+      font-size: 28px;
+      direction: rtl;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    input {
+      font-family: inherit;
+      font-size: 24px;
+      text-align: center;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      width: 200px;
+    }
+
+    img {
+      margin-top: 60px; /* טיפה יותר למטה */
+      width: 200px; 
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    img:hover {
+      transform: scale(1.05);
+    }
+
+    #word, #plus, #instructions, #participant-screen {
+      display: none;
+    }
+
+    #word {
+      font-size: 60px;
+      color: white;
+    }
+
+    #plus {
+      font-size: 60px;
+      color: white;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    p {
+      font-size: 24px;
+    }
+
+    #message {
+      color: red; /* אדום ברור לשגיאה */
+      font-size: 22px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- שלב 1: הכנסת מזהה משתתף -->
+  <div id="participant-screen">
+    <h2>אנא הזיני את מספר המשתתף שלך:</h2>
+    <input type="text" id="participantID" placeholder="לדוגמה: 101">
+    <br><br>
+    <img src="MoveForward.png" alt="התחל ניסוי" onclick="checkParticipant()">
+    <p id="message"></p>
+  </div>
+
+  <!-- שלב 2: הוראות -->
+  <div id="instructions">
+    <h2>הוראות הניסוי</h2>
+    <p>
+      תוצג בפנייך סדרת מילים.<br>
+      עלייך להתבונן היטב בכל מילה.<br>
+      כל מילה תופיע לשתי שניות, ובין המילים יופיע סימן “+”.
+    </p>
+    <img src="MoveForward.png" alt="המשך" onclick="startExperiment()">
+  </div>
+
+  <!-- שלב 3: הצגת מילים -->
+  <div id="word"></div>
+  <div id="plus">+</div>
+
+  <script>
+    // --- הגדרת Firebase ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyD5Q2xd9yXSB1Bdb9XSL2Yw2sMqbbT-RnQ",
+        authDomain: "lotemmemoryexp.firebaseapp.com",
+        projectId: "lotemmemoryexp",
+        storageBucket: "lotemmemoryexp.firebasestorage.app",
+        messagingSenderId: "422840235601"
+        appId: "1:422840235601:web:fb9eb6afb88626f2f72a70",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // רשימת מילים
+    const words = [
+        "אחת","שתיים","שלוש","ארבע","חמש","שש","שבע","שמונה","תשע","עשר",
+        "אחתעשרה","שתייםעשרה","שלושעשרה","ארבעעשרה","חמשעשרה","ששעשרה","שבעעשרה","שמונהעשרה","תשעעשרה","עשרים",
+        "עשריםואחת","עשריםושתיים","עשריםושלוש","עשריםוארבע","עשריםוחמש","עשריםושש","עשריםושבע","עשריםושמונה","עשריםותשע","שלושים",
+        "שלושיםואחת","שלושיםושתיים","שלושיםושלוש","שלושיםוארבע","שלושיםוחמש","שלושיםושש","שלושיםושבע","שלושיםושמונה","שלושיםותשע","ארבעים"
+    ];
+
+    // ערבוב
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // הצגת מסך ראשון
+    document.getElementById("participant-screen").style.display = "block";
+
+    // בדיקת משתתף
+    async function checkParticipant() {
+        const id = document.getElementById("participantID").value.trim();
+        const message = document.getElementById("message");
+
+        if (!id) {
+            message.innerText = "יש להזין מספר משתתף.";
+            return;
+        }
+
+        const ref = db.collection("participants").doc(id);
+        const docSnap = await ref.get();
+
+        if (docSnap.exists) {
+            message.innerText = "נראה שכבר ביצעת את השלב הזה בעבר ואין אפשרות לבצע אותו שוב.";
+        } else {
+            await ref.set({ entered: true, timestamp: new Date() });
+            document.getElementById("participant-screen").style.display = "none";
+            document.getElementById("instructions").style.display = "block";
+        }
+    }
+
+    // תחילת הניסוי
+    async function startExperiment() {
+        // ✅ מעבר למסך מלא
+        if (document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+        }
+
+        document.getElementById("instructions").style.display = "none";
+        const randomizedWords = shuffle([...words]);
+        await showWords(randomizedWords);
+
+        // ✅ טקסט סיום חדש בשלוש שורות
+        document.body.innerHTML = `
+          <h2>שלב זה הסתיים.</h2>
+          <p>יש לצאת מהאתר הזה ולגשת ללינק הבא כדי לבצע את משימת הזיכרון</p>
+          <p>תודה!</p>
+        `;
+    }
+
+    // הצגת מילים
+    async function showWords(wordList) {
+        const wordDiv = document.getElementById("word");
+        const plusDiv = document.getElementById("plus");
+
+        for (const w of wordList) {
+            plusDiv.style.display = "block";
+            wordDiv.style.display = "none";
+            await new Promise(r => setTimeout(r, 1000));
+
+            plusDiv.style.display = "none";
+            wordDiv.innerText = w;
+            wordDiv.style.display = "block";
+            await new Promise(r => setTimeout(r, 2000));
+        }
+
+        wordDiv.style.display = "none";
+        plusDiv.style.display = "none";
+    }
+  </script>
+</body>
+</html>
